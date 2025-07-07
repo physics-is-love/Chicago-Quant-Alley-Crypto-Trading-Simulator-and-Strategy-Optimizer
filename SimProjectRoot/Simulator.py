@@ -7,6 +7,7 @@ from config import simStartDate, simEndDate, symbols, data_path
 from Strategy import Strategy
 from stats.printStats import printStats  # Moved here
 from glob import glob
+import csv 
 
 class Simulator:
     def __init__(self):
@@ -17,6 +18,7 @@ class Simulator:
         self.sellValue = {}
         self.pnl_history = []
         self.strategy = Strategy(self)
+        self.pnl_records = [] 
 
     def readData(self):
         all_data = []
@@ -78,10 +80,10 @@ class Simulator:
                 last_processed_date = current_date
 
             if current_date != last_processed_date:
-                self.printPnl() # Record P&L at end of day
+                self.printPnl(timestamp=last_processed_date) # Record P&L at end of day
                 last_processed_date = current_date
 
-        self.printPnl()
+        self.printPnl(timestamp=self.df['time'].iloc[-1].date())
 
     def onOrder(self, symbol, side, quantity, price):
         epsilon = 0.0001
@@ -97,7 +99,7 @@ class Simulator:
 
         self.strategy.onTradeConfirmation(symbol, side, quantity, trade_price)
 
-    def printPnl(self):
+    def printPnl(self, timestamp=None):
         total_pnl = 0
         for symbol in set(self.buyValue) | set(self.sellValue):
             buy_val = self.buyValue.get(symbol, 0)
@@ -106,8 +108,17 @@ class Simulator:
             current_price = self.currentPrice.get(symbol, 0)
             pnl = sell_val - buy_val + quantity * current_price
             total_pnl += pnl
+
         self.pnl_history.append(total_pnl)
-        print(f"Current Total P&L: {total_pnl:.2f}")
+        ts = timestamp if timestamp else "Final"
+        self.pnl_records.append({'time': ts, 'PnL': total_pnl})
+        print(f"Current Total P&L at {ts}: {total_pnl:.2f}")
+    
+    def exportPnlToCsv(self, output_file='output.csv'):
+        df_pnl = pd.DataFrame(self.pnl_records)
+        df_pnl.to_csv(output_file, index=False)
+        print(f"P&L history exported to {output_file}")
+
 
 
 if __name__ == '__main__':
@@ -116,3 +127,4 @@ if __name__ == '__main__':
     sim.startSimulation()
     sim.printPnl()
     printStats(sim.pnl_history)
+    sim.exportPnlToCsv()
